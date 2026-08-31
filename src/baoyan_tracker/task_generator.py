@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -13,7 +14,12 @@ from .bitable_service import BitableService, PlannedChange
 from .business_time import business_today
 from .schema import timestamp
 
-DEFAULT_RULES_PATH = Path(__file__).resolve().parents[2] / "config" / "task_rules.json"
+TASK_RULES_ENV = "TASK_RULES_PATH"
+DEFAULT_RULES_RELATIVE_PATH = Path("config") / "task_rules.json"
+
+
+class TaskRulesNotFoundError(FileNotFoundError):
+    """Raised when no task-rules configuration can be resolved."""
 
 
 class TaskRule(BaseModel):
@@ -89,8 +95,40 @@ class GeneratedTask:
     fields: dict[str, Any]
 
 
-def load_task_rules(path: Path | None = None) -> TaskRuleSet:
-    rule_path = path or DEFAULT_RULES_PATH
+def resolve_task_rules_path(path: Path | str | None = None) -> Path:
+    """Resolve task rules without relying on the installed module location.
+
+    An explicit argument is authoritative. Otherwise ``TASK_RULES_PATH`` is
+    authoritative when set, followed by ``config/task_rules.json`` below the
+    current working directory.
+    """
+
+    if path is not None:
+        candidates = (Path(path).expanduser(),)
+    else:
+        configured = os.getenv(TASK_RULES_ENV)
+        if configured and configured.strip():
+            candidates = (Path(configured.strip()).expanduser(),)
+        else:
+            candidates = (Path.cwd() / DEFAULT_RULES_RELATIVE_PATH,)
+
+    checked: list[Path] = []
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        checked.append(resolved)
+        if resolved.is_file():
+            return resolved
+
+    locations = "\n".join(f"- {candidate}" for candidate in checked)
+    raise TaskRulesNotFoundError(
+        "Task rules file not found.\n"
+        f"Checked:\n{locations}\n"
+        f"Pass an explicit path, set {TASK_RULES_ENV}, or run from the repository root."
+    )
+
+
+def load_task_rules(path: Path | str | None = None) -> TaskRuleSet:
+    rule_path = resolve_task_rules_path(path)
     return TaskRuleSet.model_validate_json(rule_path.read_text(encoding="utf-8"))
 
 

@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+from pathlib import Path
 
 from baoyan_tracker.bitable_service import BitableService
 from baoyan_tracker.config import ConfigurationError, load_settings
 from baoyan_tracker.feishu_client import FeishuAPIError, FeishuClient
-from baoyan_tracker.task_generator import generate_daily_tasks, load_task_rules, resolve_dates
+from baoyan_tracker.task_generator import (
+    TaskRulesNotFoundError,
+    generate_daily_tasks,
+    load_task_rules,
+    resolve_dates,
+)
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+TASK_RULES_PATH = REPOSITORY_ROOT / "config" / "task_rules.json"
 
 
 def main() -> int:
@@ -23,7 +32,7 @@ def main() -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     try:
-        rules = load_task_rules()
+        rules = load_task_rules(TASK_RULES_PATH)
         dates = resolve_dates(
             explicit_date=args.date,
             today_only=args.today,
@@ -46,7 +55,7 @@ def main() -> int:
             for change in changes:
                 print(f"{prefix}: {change}")
         return 0
-    except (ConfigurationError, FeishuAPIError, ValueError) as exc:
+    except (ConfigurationError, FeishuAPIError, TaskRulesNotFoundError, ValueError) as exc:
         print(f"[FAIL] Daily task generation: {exc}")
         return 1
 
