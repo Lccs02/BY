@@ -203,13 +203,19 @@ def main() -> int:
                 _assert_close(goals[goal_id].get("14日速度"), total / 14, f"{goal_id} v14")
                 _assert_close(goals[goal_id].get("30日速度"), total / 30, f"{goal_id} v30")
                 _assert_close(goals[goal_id].get("计划值"), 0, f"{goal_id} expected")
-            _assert_close(goals["GOAL-LC-220"].get("实际进度"), 5 / 220 * 100, "LC progress")
+            lc_target = _number(goals["GOAL-LC-220"].get("目标值"))
+            english_target = _number(goals["GOAL-ENGLISH-DAILY"].get("目标值"))
+            _assert_close(
+                goals["GOAL-LC-220"].get("实际进度"),
+                5 / lc_target * 100,
+                "LC progress",
+            )
             _assert_close(
                 goals["GOAL-ENGLISH-DAILY"].get("实际进度"),
-                30 / 9120 * 100,
+                30 / english_target * 100,
                 "English progress",
             )
-            lc_days = math.ceil((220 - 5) / (5 / 14))
+            lc_days = math.ceil((lc_target - 5) / (5 / 14))
             expected_lc_completion = end + timedelta(days=lc_days)
             if _as_date(goals["GOAL-LC-220"].get("预计完成日期")) != expected_lc_completion:
                 raise AssertionError("LeetCode estimated completion date differs")

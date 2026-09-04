@@ -129,13 +129,13 @@ def calculate_risk(
     expected = calculate_time_progress(start, deadline, as_of)
     gap = calculate_progress_gap(actual, expected)
     velocities = [v for v in (velocity_7d, velocity_14d, velocity_30d) if v is not None]
-    forecast_velocity = velocity_14d if velocity_14d is not None else (velocities[0] if velocities else 0)
+    forecast_velocity = (
+        velocity_14d if velocity_14d is not None else (velocities[0] if velocities else 0)
+    )
     forecast = estimate_completion_date(current_value, target_value, forecast_velocity, as_of)
 
     if target_value > 0 and current_value >= target_value:
-        return RiskAssessment(
-            RiskLevel.COMPLETED, gap, expected, actual, as_of, ("目标值已完成",)
-        )
+        return RiskAssessment(RiskLevel.COMPLETED, gap, expected, actual, as_of, ("目标值已完成",))
 
     if gap >= 0:
         level = RiskLevel.ON_TRACK
@@ -169,7 +169,8 @@ def calculate_risk(
         escalate(RiskLevel.AT_RISK, "连续14天或更久没有投入")
     elif days_since_activity is not None and days_since_activity >= 7:
         escalate(RiskLevel.SLIGHTLY_BEHIND, "连续7天或更久没有投入")
-    if forecast is None and target_value > current_value and expected > 0:
+    elapsed_days = max((as_of - start).days, 0)
+    if forecast is None and target_value > current_value and expected > 0 and elapsed_days >= 7:
         escalate(RiskLevel.AT_RISK, "近期速度为零，无法预计完成日期")
     elif forecast is not None and forecast > deadline:
         overdue = (forecast - deadline).days

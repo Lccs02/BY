@@ -5,7 +5,7 @@ from datetime import date
 from typing import Any
 
 from baoyan_tracker.schema import timestamp
-from baoyan_tracker.sync import _different, sync_progress
+from baoyan_tracker.sync import _different, _milestone_mutations, sync_progress
 
 
 class FakeService:
@@ -121,3 +121,23 @@ def test_full_recalculation_is_idempotent_and_handles_edit_delete():
 
 def test_feishu_missing_text_is_equivalent_to_desired_empty_text():
     assert _different(None, "") is False
+
+
+def test_result_milestones_are_not_overwritten_by_time_progress():
+    milestones = [
+        {
+            "record_id": "time",
+            "fields": {"里程碑ID": "TIME", "所属目标": "G", "单位": "minute", "目标值": 60},
+        },
+        {
+            "record_id": "result",
+            "fields": {"里程碑ID": "RESULT", "所属目标": "G", "单位": "节点", "目标值": 1},
+        },
+    ]
+    mutations = _milestone_mutations(
+        "milestones",
+        milestones,
+        {"G": {"当前值": 90, "单位": "minute"}},
+        date(2026, 9, 4),
+    )
+    assert [mutation.record_id for mutation in mutations] == ["time"]

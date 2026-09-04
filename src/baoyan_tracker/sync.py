@@ -88,8 +88,12 @@ def _record_id(record: dict[str, Any]) -> str:
     return str(record["record_id"])
 
 
-def _goal_unit(goal_type: str) -> str:
-    return "problem" if goal_type == "COUNT" else "minute"
+def _goal_unit(goal_type: str, category: str = "", configured_unit: Any = None) -> str:
+    if configured_unit:
+        return str(configured_unit)
+    if goal_type == "COUNT":
+        return "problem" if category == "LeetCode" else "count"
+    return "minute"
 
 
 def _week_key(day: date) -> str:
@@ -160,7 +164,7 @@ def _prepare_checkins(
             goal_id = candidates_goal[0] if len(candidates_goal) == 1 else None
         goal_fields = goal_by_id.get(goal_id, {}).get("fields") or {}
         goal_type = str(goal_fields.get("目标类型") or "TIME")
-        unit = _goal_unit(goal_type)
+        unit = _goal_unit(goal_type, category, goal_fields.get("单位"))
         quantity = _number(fields.get("数量"))
         minutes = _number(fields.get("投入分钟"))
         amount = quantity if goal_type == "COUNT" else minutes
@@ -225,7 +229,11 @@ def _task_mutations(
         entries = by_task.get(task_id, [])
         goal_fields = goal_by_category.get(str(fields.get("类别") or ""), {})
         goal_type = str(goal_fields.get("目标类型") or "TIME")
-        unit = _goal_unit(goal_type)
+        unit = _goal_unit(
+            goal_type,
+            str(fields.get("类别") or ""),
+            goal_fields.get("单位"),
+        )
         actual = sum(item.quantity for item in entries)
         actual_minutes = sum(item.minutes for item in entries)
         planned = _number(fields.get("计划量"))
@@ -284,7 +292,9 @@ def _goal_mutations(
         v14 = calculate_velocity(dated_entries, 14, as_of)
         v30 = calculate_velocity(dated_entries, 30, as_of)
         last_activity = max((item.day for item in entries if item.quantity > 0), default=None)
-        inactive_days = (as_of - last_activity).days if last_activity else None
+        inactive_days = (
+            (as_of - last_activity).days if last_activity else max((as_of - start).days, 0)
+        )
         time_progress = calculate_time_progress(start, deadline, as_of)
         actual_progress = calculate_actual_progress(current, target)
         expected_value = calculate_expected_value(target, start, deadline, as_of)
@@ -306,7 +316,11 @@ def _goal_mutations(
         )
         desired = {
             "当前值": round(current, 2),
-            "单位": _goal_unit(str(fields.get("目标类型") or "TIME")),
+            "单位": _goal_unit(
+                str(fields.get("目标类型") or "TIME"),
+                str(fields.get("类别") or ""),
+                fields.get("单位"),
+            ),
             "剩余天数": max((deadline - as_of).days, 0),
             "时间进度": round(time_progress * 100, 2),
             "实际进度": round(actual_progress * 100, 2),
@@ -321,7 +335,9 @@ def _goal_mutations(
         computed[goal_id] = {**fields, **desired}
         changed = _changed_fields(fields, desired)
         if changed:
-            mutations.append(RecordMutation(table_id, _record_id(record), f"GOAL/{goal_id}", changed))
+            mutations.append(
+                RecordMutation(table_id, _record_id(record), f"GOAL/{goal_id}", changed)
+            )
     return mutations, computed
 
 
@@ -336,6 +352,13 @@ def _milestone_mutations(
         fields = record.get("fields") or {}
         goal = goals.get(str(fields.get("所属目标") or ""))
         if not goal:
+            continue
+        # Result milestones (scores, rankings, deliverables, deadlines) are
+        # maintained manually. Only milestones using the same cumulative unit
+        # as their Goal are safe to derive from check-ins.
+        milestone_unit = str(fields.get("单位") or "")
+        goal_unit = str(goal.get("单位") or "")
+        if milestone_unit and milestone_unit != goal_unit:
             continue
         current = _number(goal.get("当前值"))
         target = _number(fields.get("目标值"))
@@ -426,9 +449,7 @@ def _weekly_mutations(
             "英语时间": round(category_minutes["英语"], 2),
             "LeetCode题数": round(leetcode_count, 2),
             "408时间": round(category_minutes["408"], 2),
-            "最大进展": (
-                f"{best[1].get('任务名称')}: {best[0] * 100:.1f}%" if best[1] else ""
-            ),
+            "最大进展": (f"{best[1].get('任务名称')}: {best[0] * 100:.1f}%" if best[1] else ""),
             "最大偏差": (
                 f"{worst[1].get('任务名称')}: -{max(worst[0], 0):g}"
                 if worst[1] and worst[0] > 0

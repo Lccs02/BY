@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .bitable_service import BitableService, PlannedChange, missing_names, records_missing_by_key
+from .feishu_client import FeishuAPIError
 from .schema import TABLE_SPECS, TableSpec
 
 
@@ -71,7 +72,16 @@ class Bootstrapper:
             return
         result.changes.append(PlannedChange("DELETE BLANK DEFAULT TABLE", "数据表"))
         if apply:
-            self.service.delete_table(table_id)
+            try:
+                self.service.delete_table(table_id)
+            except FeishuAPIError:
+                # A user-owned Base may grant an app permission to create tables and
+                # records but not to delete the final/default table. Keep it as an
+                # explicitly named placeholder so initialization can still proceed.
+                self.service.rename_table(table_id, "__空白占位表_可手动删除__")
+                result.changes.append(
+                    PlannedChange("RENAME BLANK DEFAULT TABLE", "__空白占位表_可手动删除__")
+                )
             existing_tables.pop("数据表", None)
 
     def _ensure_fields(
@@ -118,12 +128,17 @@ class Bootstrapper:
         result: BootstrapResult,
         apply: bool,
     ) -> None:
-        if not spec.views:
+        if not spec.views and not spec.form_views:
             return
         table_id = self._table_id(table)
         existing = self.service.list_views(table_id)
         existing_names = [str(item.get("view_name")) for item in existing]
-        for name in missing_names(existing_names, spec.views):
+        desired = tuple((name, "grid") for name in spec.views) + tuple(
+            (name, "form") for name in spec.form_views
+        )
+        for name, view_type in desired:
+            if name in existing_names:
+                continue
             result.changes.append(PlannedChange("CREATE VIEW", f"{spec.name}/{name}"))
             if apply:
-                self.service.create_view(table_id, name)
+                self.service.create_view(table_id, name, view_type=view_type)

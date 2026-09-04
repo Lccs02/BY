@@ -119,6 +119,15 @@ python scripts/daily_job.py --apply
 python scripts/inspect_feishu.py
 ```
 
+迁移到个人账号拥有的多维表格或 Wiki 中的多维表格：
+
+```powershell
+python scripts/migrate_feishu_bitable.py --target-url "https://your-domain.feishu.cn/wiki/your-node-token"
+python scripts/migrate_feishu_bitable.py --target-url "https://your-domain.feishu.cn/wiki/your-node-token" --apply
+```
+
+迁移会先确认目标表为空，复制全部业务记录，创建“快速打卡”表单视图，并在全部成功后切换本地配置。URL 中的登录参数会被移除；不要把 `disposable_login_token` 保存到配置或提交到 Git。
+
 重复执行 bootstrap 或 sync 都会先读取现状，只补缺失结构或更新发生变化的值。
 
 同步以 `04_打卡记录` 为唯一行为事实源，不执行 `当前值 += 新值`。修改或删除打卡后再次同步，会从全部剩余打卡重新计算每日任务、长期目标、速度、预计完成日期、风险和周复盘，因此不会重复计数。
@@ -156,7 +165,7 @@ python scripts/inspect_feishu.py
 
 ## 飞书端仍需手工配置
 
-命名视图已由 API 创建，但视图筛选、自动化和仪表盘需要在飞书界面完成：
+命名网格视图和“快速打卡”表单视图已由 API 创建，但表单字段布局与发布范围、视图筛选、自动化和仪表盘仍需在飞书界面完成：
 
 - [数据结构与视图](docs/FEISHU_SCHEMA.md)
 - [自动化步骤](docs/FEISHU_AUTOMATIONS.md)

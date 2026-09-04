@@ -53,6 +53,14 @@ class BitableService:
             raise FeishuAPIError("create Bitable app", "invalid_response", "app_token missing")
         return cls(client, str(token))
 
+    def rename_app(self, name: str) -> None:
+        self.client.request(
+            "PUT",
+            f"/bitable/v1/apps/{self.app_token}",
+            operation="rename Bitable app",
+            json={"name": name},
+        )
+
     def _list_paginated(self, path: str, operation: str) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         page_token: str | None = None
@@ -122,12 +130,12 @@ class BitableService:
             "list Bitable views",
         )
 
-    def create_view(self, table_id: str, name: str) -> dict[str, Any]:
+    def create_view(self, table_id: str, name: str, *, view_type: str = "grid") -> dict[str, Any]:
         data = self.client.request(
             "POST",
             f"/bitable/v1/apps/{self.app_token}/tables/{table_id}/views",
             operation=f"create view {name}",
-            json={"view_name": name, "view_type": "grid"},
+            json={"view_name": name, "view_type": view_type},
         )
         return data.get("view") or data
 
@@ -196,9 +204,10 @@ class BitableService:
         record_id = str(record["record_id"])
         fetched = self.get_record(table_id, record_id)
         values = fetched.get("fields") or {}
-        if values.get("测试文本") != "Codex API Connection OK" or float(
-            values.get("测试数值", 0)
-        ) != 1.0:
+        if (
+            values.get("测试文本") != "Codex API Connection OK"
+            or float(values.get("测试数值", 0)) != 1.0
+        ):
             raise FeishuAPIError("read test record", "verification", "record values differ")
         emit("[PASS] Bitable read record")
         try:

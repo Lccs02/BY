@@ -57,6 +57,18 @@ def test_completed_risk():
     assert assessment.level == RiskLevel.COMPLETED
 
 
+def test_new_goal_has_one_week_forecast_grace_period():
+    assessment = calculate_risk(
+        start=date(2026, 9, 1),
+        deadline=date(2027, 5, 31),
+        as_of=date(2026, 9, 4),
+        current_value=0,
+        target_value=220,
+        velocity_14d=0,
+    )
+    assert assessment.level == RiskLevel.SLIGHTLY_BEHIND
+
+
 def test_unconfigured_target_is_not_false_positive_risk():
     assessment = calculate_risk(
         start=date(2026, 1, 1),

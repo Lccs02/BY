@@ -37,6 +37,8 @@ class TaskRule(BaseModel):
     plan_by_weekday: dict[int, float] = Field(default_factory=dict)
     minutes_by_weekday: dict[int, float] = Field(default_factory=dict)
     content_cycle: tuple[str, ...] = ()
+    active_from: date | None = None
+    active_until: date | None = None
 
     @field_validator("weekdays")
     @classmethod
@@ -56,9 +58,15 @@ class TaskRule(BaseModel):
         for weekday in (*self.plan_by_weekday, *self.minutes_by_weekday):
             if weekday not in self.weekdays:
                 raise ValueError("weekday-specific values must belong to weekdays")
+        if self.active_from and self.active_until and self.active_from > self.active_until:
+            raise ValueError("active_from must not be later than active_until")
         return self
 
     def matches(self, day: date) -> bool:
+        if self.active_from and day < self.active_from:
+            return False
+        if self.active_until and day > self.active_until:
+            return False
         return day.isoweekday() in self.weekdays
 
     def task_content(self, day: date) -> str:
@@ -225,9 +233,7 @@ def generate_daily_tasks(
         current = record.get("fields") or {}
         # Actual values and status always remain owned by the sync/user workflow.
         maintainable = {
-            key: value
-            for key, value in task.fields.items()
-            if key not in {"状态", "是否今日"}
+            key: value for key, value in task.fields.items() if key not in {"状态", "是否今日"}
         }
         changed = _changed(current, maintainable)
         if changed:

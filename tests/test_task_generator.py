@@ -45,11 +45,11 @@ class FakeTaskService:
 
 def test_rule_parsing_and_weekday_matching():
     rules = load_task_rules(PROJECT_RULES_PATH)
-    assert len(rules.rules) == 3
+    assert len(rules.rules) == 10
     tuesday = date(2026, 9, 1)
     tasks = build_tasks(rules, (tuesday,))
     categories = {task.fields["类别"] for task in tasks}
-    assert categories == {"英语", "LeetCode"}
+    assert categories == {"科研", "英语", "LeetCode"}
     leetcode = next(task for task in tasks if task.fields["类别"] == "LeetCode")
     assert leetcode.fields["计划量"] == 2
     assert leetcode.fields["预计时间"] == 60
@@ -61,7 +61,17 @@ def test_408_rotation_and_sunday_duration():
     task = next(item for item in build_tasks(rules, (sunday,)) if item.fields["类别"] == "408")
     assert task.fields["计划量"] == 120
     assert task.fields["单位"] == "minute"
-    assert any(subject in task.fields["任务名称"] for subject in rules.rules[2].content_cycle)
+    rule = next(rule for rule in rules.rules if rule.rule_id == "408_secondary")
+    assert any(subject in task.fields["任务名称"] for subject in rule.content_cycle)
+
+
+def test_phase_boundaries_change_priorities_without_duplicate_categories():
+    rules = load_task_rules(PROJECT_RULES_PATH)
+    december = build_tasks(rules, (date(2026, 12, 3),))
+    by_category = {task.fields["类别"]: task for task in december}
+    assert by_category["英语"].fields["计划量"] == 75
+    assert by_category["科研"].fields["优先级"] == "P1"
+    assert len([task for task in december if task.fields["类别"] == "科研"]) == 1
 
 
 def test_future_date_resolution_is_bounded_and_inclusive():
@@ -79,10 +89,10 @@ def test_duplicate_prevention_and_manual_edit_preservation():
     rules = load_task_rules(PROJECT_RULES_PATH)
     dates = (date(2026, 9, 1),)
     first = generate_daily_tasks(service, rules, dates, apply=True)
-    assert len(first) == 2
+    assert len(first) == 3
     assert generate_daily_tasks(service, rules, dates, apply=True) == []
     assert generate_daily_tasks(service, rules, dates, apply=True) == []
-    assert len(service.records) == 2
+    assert len(service.records) == 3
 
     english = next(item for item in service.records if item["fields"]["类别"] == "英语")
     english["fields"]["计划量"] = 20
@@ -95,9 +105,9 @@ def test_duplicate_prevention_and_manual_edit_preservation():
 
     changes = generate_daily_tasks(service, rules, dates, apply=True, force=True)
     assert len(changes) == 1
-    assert english["fields"]["计划量"] == 30
-    assert english["fields"]["预计时间"] == 30
-    assert english["fields"]["备注"] == "自动生成：english_daily"
+    assert english["fields"]["计划量"] == 60
+    assert english["fields"]["预计时间"] == 60
+    assert english["fields"]["备注"] == "自动生成：cet6_build"
 
 
 def _write_rules(path: Path, *, default_days: int) -> Path:
