@@ -11,7 +11,13 @@ from baoyan_tracker.bootstrap import Bootstrapper
 from baoyan_tracker.business_time import business_today
 from baoyan_tracker.config import ConfigurationError, load_settings
 from baoyan_tracker.feishu_client import FeishuAPIError, FeishuClient
-from baoyan_tracker.schema import LONG_TERM_GOALS, MILESTONES, RESEARCH_PROJECTS, TableSpec
+from baoyan_tracker.schema import (
+    CCF_A_SUBMISSION_ROUTE,
+    LONG_TERM_GOALS,
+    MILESTONES,
+    RESEARCH_PROJECTS,
+    TableSpec,
+)
 from baoyan_tracker.sync import sync_progress
 from baoyan_tracker.task_generator import generate_daily_tasks, load_task_rules, resolve_dates
 
@@ -36,7 +42,11 @@ def upsert_seed_plan(
     apply: bool,
 ) -> list[PlannedChange]:
     tables = {str(item.get("name")): item for item in service.list_tables()}
-    table_id = str(tables[spec.name]["table_id"])
+    table = tables.get(spec.name)
+    if table is None:
+        # Bootstrap already reports the planned table and seed creation in dry-run mode.
+        return []
+    table_id = str(table["table_id"])
     records = service.list_records(table_id)
     existing = {
         str(record.get("fields", {}).get(spec.unique_key)): record
@@ -48,9 +58,7 @@ def upsert_seed_plan(
         key = str(seed[spec.unique_key])
         record = existing.get(key)
         if record is None:
-            changes.append(PlannedChange("CREATE PLAN RECORD", f"{spec.name}/{key}"))
-            if apply:
-                service.create_record(table_id, seed)
+            # Bootstrap owns missing seed creation; this pass only updates existing rows.
             continue
         current = record.get("fields") or {}
         desired = dict(seed)
@@ -58,6 +66,9 @@ def upsert_seed_plan(
             # Never undo progress that the user has marked manually.
             for field in ("当前值", "状态", "完成日期"):
                 desired.pop(field, None)
+        elif spec is CCF_A_SUBMISSION_ROUTE:
+            # The route definition is managed here; the user's live workflow stage is not.
+            desired.pop("当前状态", None)
         changed = {
             field: value
             for field, value in desired.items()
@@ -114,7 +125,12 @@ def main() -> int:
             if apply:
                 service.rename_app("2028届清北学术保研计划")
             changes = list(Bootstrapper(service).run(apply=apply).changes)
-            for spec in (LONG_TERM_GOALS, MILESTONES, RESEARCH_PROJECTS):
+            for spec in (
+                LONG_TERM_GOALS,
+                MILESTONES,
+                RESEARCH_PROJECTS,
+                CCF_A_SUBMISSION_ROUTE,
+            ):
                 changes.extend(upsert_seed_plan(service, spec, apply=apply))
             changes.extend(remove_legacy_unstarted_tasks(service, apply=apply))
             changes.extend(

@@ -7,7 +7,7 @@
 ```text
 飞书移动端 / 多维表格
           │
-          ├─ 6 张核心数据表、命名视图、自动化、仪表盘
+          ├─ 7 张核心数据表、命名视图、自动化、仪表盘
           │
 Python CLI ├─ OpenAPI 初始化与幂等补齐
           ├─ 配置化生成今天与未来2天任务
@@ -22,7 +22,7 @@ src/baoyan_tracker/
   config.py            安全 env 读取与兼容别名
   feishu_client.py      tenant token 内存缓存与统一请求
   bitable_service.py    表、字段、视图、记录操作
-  schema.py             6 张表及 Seed 声明
+  schema.py             7 张表及 Seed 声明
   bootstrap.py          幂等初始化
   progress_engine.py    透明可解释的进度算法
   sync.py               打卡→任务→目标→里程碑→周复盘全量重算
